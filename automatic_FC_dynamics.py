@@ -3,6 +3,9 @@
 """
 Created on Wed Jun  9 11:22:06 2021
 
+
+modified on Sat Jan 15 22:33:46 2022
+
 @author: sofiapuvogel
 """
 
@@ -22,11 +25,13 @@ import copy
 import os
 
 
-path="" 
-#here goes the directory that contains the matrices indicating the changes in the calcium signal per neuron in each frame
-
-
+path="" #here goes the directory that contains the matrices indicating the changes in the calcium signal per neuron in each frame
+path_organizador='' #a folder to save the output
 directories=os.listdir(path)
+
+
+DF_list=list()
+
 for mine in directories:
     print ("Runing cell and date:"+mine)
     os.chdir(path+"/"+mine)
@@ -38,6 +43,13 @@ for mine in directories:
     dire=os.listdir(cwd)
     print("List of videos:")
     print(dire)
+    
+ 
+    
+    index=['cell_line','condition','n_states','n_change_points','max_dis',
+                 'travel_dis', 'mean_time_in_ms','max_dist_suc', 'n_hubs','n_of_visits_to_hubs','mean_time_in_hub',
+                 'n_neu','n_neu_2','network']
+    video_df=pd.DataFrame(index=index)
     for vid in dire:
         os.chdir(cwd+"/"+vid)
         act= os.getcwd()
@@ -48,17 +60,36 @@ for mine in directories:
         print("runing video:"+video_x)
         #important for save
         cell_date=cell
-        cell_date_2=[cell]
         network_name=[cell_date+"_"+vid]
+        network_name_2=cell_date+"_"+vid
+
         video=video_x
+
+        cell_line=cell_date[0:5]
+        
+        
+        
+        video=video_x
+        condition=[]
+        
+        i=copy.deepcopy(cell_line)
+        if i == "c79A_" or i == "cCF2_":
+            j="ct"
+        else:
+            j="sz"
+        condition=j
         ######### starts script
-        F_dff=np.load("F_dff.npy")
+        F_dff=np.load("new_scaled_F_dff.npy")#F_dff.npy
         neurons_number,frames_number=F_dff.shape
-        window_shape=(neurons_number,70)
+        window_shape=(neurons_number,200)#change size 
         step=(1)
         F_dffoverlap=view_as_windows(F_dff, window_shape, step)
         a,overlaped_frames,c,d=F_dffoverlap.shape
         pwcorrelationsoverlap=[] #FC(t)
+        
+        #to save each video data
+        
+        
         for i in range (overlaped_frames):
             pwcoverlap=np.corrcoef(F_dffoverlap[0][i])
             pwcorrelationsoverlap.append(pwcoverlap)   
@@ -81,79 +112,9 @@ for mine in directories:
         fcd=np.corrcoef(t_v)
         
         functional_connectivity=np.corrcoef(F_dff)
+        
 
-        threshold=np.arange(0.3,1.,0.1)
-        n=functional_connectivity.shape
-        conectivity=[]
         
-        raw_connectivity=copy.deepcopy(functional_connectivity)
-
-        raw_connectivity=np.triu(raw_connectivity,k=1)
-        np.fill_diagonal(raw_connectivity,0)
-
-        raw_connectivity_vector=[]
-        for t in range (1,neurons_number):
-            for s in range (t):
-                vec=raw_connectivity[s,t]
-                raw_connectivity_vector.append(vec)
-
-        raw_connectivity_vector=np.absolute(raw_connectivity_vector)
-        #raw_connectivity_vector_list=raw_connectivity_vector.tolist()
-
-        for x in threshold:
-            arr=np.full(n,x)
-            conections=np.greater_equal(functional_connectivity,arr)
-            conectionsint=conections.astype(int)
-            conectivity.append(conectionsint)
-        conectivitycopy=copy.deepcopy(conectivity)
-        connection_numbers_exc=[]
-        
-        for i in range (7):
-            np.fill_diagonal(conectivitycopy[i],0)
-        conectivitycopy_triu=[]
-        for i in range(7):
-            con_triu=[np.triu(conectivitycopy[i], k=1)]
-            conectivitycopy_triu.append(con_triu)
-        for i in range (7):
-            x=(np.sum(conectivitycopy_triu[i])/neurons_number)
-            connection_numbers_exc.append(x)
-        conectivity_lst=[list(x) for x in conectivitycopy]
-        conection_exc_abs=[]
-        for i in range (7):
-            for t in range(neurons_number):
-                x=np.sum(conectivity_lst[i][t])
-                conection_exc_abs.append(x)
-        connection_exc_abs=np.array_split(conection_exc_abs,7)
-        threshold_neg=np.arange(-0.3,-1.,-0.1)
-        conectivity_neg=[]
-        
-        for x_neg in threshold_neg:
-            arr_neg=np.full(n,x_neg)
-            conections_neg=np.less(functional_connectivity,arr_neg)
-            conectionsint_neg=conections_neg.astype(int)
-            conectivity_neg.append(conectionsint_neg)
-        conectivitycopy_neg=copy.deepcopy(conectivity_neg)
-        connection_numbers_neg=[]
-        
-        for i in range (7):
-            np.fill_diagonal(conectivitycopy_neg[i],0)
-        conectivitycopy_neg_triu=[]
-        
-        for i in range(7):
-            con_triu=[np.triu(conectivitycopy_neg[i], k=1)]
-            conectivitycopy_neg_triu.append(con_triu)
-        for i_neg in range (7):
-            x_neg=(np.sum(conectivitycopy_neg_triu[i_neg])/neurons_number)
-            connection_numbers_neg.append(x_neg)
-        conectivity_neg_lst=[list(x) for x in conectivitycopy_neg]   
-        conection_neg_abs=[]
-        
-        
-        for i in range (7):
-            for t in range(neurons_number):
-                x=np.sum(conectivity_neg_lst[i][t])
-                conection_neg_abs.append(x)
-        connection_neg_abs=np.array_split(conection_neg_abs,7)#  
         arr_t_v_list=list(arr_t_v)
         regression = ica.mixing_ 
         positive_weights=[]
@@ -291,7 +252,7 @@ for mine in directories:
         hubs=list(number_states.values())
         dict_of_real_hubs = { key:value for key, value in dict_of_hubs.items() if value > 1}
         real_hubs_prop=[len(dict_of_real_hubs)/number_of_states]
-        real_hubs_num=[len(dict_of_real_hubs)]
+        real_hubs_num=len(dict_of_real_hubs)
         dict_of_super_real_hubs = { key:value for key, value in dict_of_hubs.items() if value > 2}
         super_real_hubs_prop=[len(dict_of_super_real_hubs)/number_of_states]
         super_real_hubs_num=[len(dict_of_super_real_hubs)]
@@ -349,209 +310,8 @@ for mine in directories:
         
         df_dict_of_hubs['neu_num']=dict_of_hubs_neu
         
-        connection_tot_abs=[]
-        for t in range (len(connection_neg_abs)):
-            x=connection_neg_abs[t]+connection_exc_abs[t]
-            connection_tot_abs.append(x)
-         
-        min_conn_neg_abs=[]
-        for t in range (len(connection_neg_abs)):
-            x=min(connection_neg_abs[t])
-            min_conn_neg_abs.append(x)
-    
-        max_conn_neg_abs=[]
-        for t in range (len(connection_neg_abs)):
-            x=max(connection_neg_abs[t])
-            max_conn_neg_abs.append(x)
-    
-        mean_conn_neg_abs=[]
-        for t in range (len(connection_neg_abs)):
-            x=np.mean(connection_neg_abs[t])
-            mean_conn_neg_abs.append(x)
-
-        median_conn_neg_abs=[]
-        for t in range (len(connection_neg_abs)):
-            x=np.median(connection_neg_abs[t])
-            median_conn_neg_abs.append(x)
-    
-        min_conn_exc_abs=[]
-        for t in range (len(connection_exc_abs)):
-            x=min(connection_exc_abs[t])
-            min_conn_exc_abs.append(x)
-    
-        max_conn_exc_abs=[]
-        for t in range (len(connection_exc_abs)):
-            x=max(connection_exc_abs[t])
-            max_conn_exc_abs.append(x)
-    
-        mean_conn_exc_abs=[]
-        for t in range (len(connection_exc_abs)):
-            x=np.mean(connection_exc_abs[t])
-            mean_conn_exc_abs.append(x)
-
-        median_conn_exc_abs=[]
-        for t in range (len(connection_exc_abs)):
-            x=np.median(connection_exc_abs[t])
-            median_conn_exc_abs.append(x)
-        
-        min_conn_tot_abs=[]
-        for t in range (len(connection_tot_abs)):
-                x=min(connection_tot_abs[t])
-                min_conn_tot_abs.append(x)
-    
-        max_conn_tot_abs=[]
-        for t in range (len(connection_tot_abs)):
-            x=max(connection_tot_abs[t])
-            max_conn_tot_abs.append(x)
-    
-        mean_conn_tot_abs=[]
-        for t in range (len(connection_tot_abs)):
-            x=np.mean(connection_tot_abs[t])
-            mean_conn_tot_abs.append(x)
-
-        median_conn_tot_abs=[]
-        for t in range (len(connection_tot_abs)):
-            x=np.median(connection_tot_abs[t])
-            median_conn_tot_abs.append(x)
-        
-        
-        min_neg_03=min_conn_neg_abs[0]
-        min_exc_03=min_conn_exc_abs[0]
-        min_tot_03=min_conn_tot_abs[0]
-        
-        min_neg_04=min_conn_neg_abs[1]
-        min_exc_04=min_conn_exc_abs[1]
-        min_tot_04=min_conn_tot_abs[1]
-        
-        min_neg_05=min_conn_neg_abs[2]
-        min_exc_05=min_conn_exc_abs[2]
-        min_tot_05=min_conn_tot_abs[2]
-        
-        min_neg_06=min_conn_neg_abs[3]
-        min_exc_06=min_conn_exc_abs[3]
-        min_tot_06=min_conn_tot_abs[3]
-        
-        min_neg_07=min_conn_neg_abs[4]
-        min_exc_07=min_conn_exc_abs[4]
-        min_tot_07=min_conn_tot_abs[4]
-        
-        min_neg_08=min_conn_neg_abs[5]
-        min_exc_08=min_conn_exc_abs[5]
-        min_tot_08=min_conn_tot_abs[5]
-        
-        min_neg_09=min_conn_neg_abs[6]
-        min_exc_09=min_conn_exc_abs[6]
-        min_tot_09=min_conn_tot_abs[6]   
-            
-        max_neg_03=max_conn_neg_abs[0]
-        max_exc_03=max_conn_exc_abs[0]
-        max_tot_03=max_conn_tot_abs[0]
-        
-        max_neg_04=max_conn_neg_abs[1]
-        max_exc_04=max_conn_exc_abs[1]
-        max_tot_04=max_conn_tot_abs[1]
-        
-        max_neg_05=max_conn_neg_abs[2]
-        max_exc_05=max_conn_exc_abs[2]
-        max_tot_05=max_conn_tot_abs[2]
-        
-        max_neg_06=max_conn_neg_abs[3]
-        max_exc_06=max_conn_exc_abs[3]
-        max_tot_06=max_conn_tot_abs[3]
-        
-        max_neg_07=max_conn_neg_abs[4]
-        max_exc_07=max_conn_exc_abs[4]
-        max_tot_07=max_conn_tot_abs[4]
-        
-        max_neg_08=max_conn_neg_abs[5]
-        max_exc_08=max_conn_exc_abs[5]
-        max_tot_08=max_conn_tot_abs[5]
-        
-        max_neg_09=max_conn_neg_abs[6]
-        max_exc_09=max_conn_exc_abs[6]
-        max_tot_09=max_conn_tot_abs[6]   
-        
-        mean_neg_03=mean_conn_neg_abs[0]
-        mean_exc_03=mean_conn_exc_abs[0]
-        mean_tot_03=mean_conn_tot_abs[0]
-        
-        mean_neg_04=mean_conn_neg_abs[1]
-        mean_exc_04=mean_conn_exc_abs[1]
-        mean_tot_04=mean_conn_tot_abs[1]
-        
-        mean_neg_05=mean_conn_neg_abs[2]
-        mean_exc_05=mean_conn_exc_abs[2]
-        mean_tot_05=mean_conn_tot_abs[2]
-        
-        mean_neg_06=mean_conn_neg_abs[3]
-        mean_exc_06=mean_conn_exc_abs[3]
-        mean_tot_06=mean_conn_tot_abs[3]
-        
-        mean_neg_07=mean_conn_neg_abs[4]
-        mean_exc_07=mean_conn_exc_abs[4]
-        mean_tot_07=mean_conn_tot_abs[4]
-        
-        mean_neg_08=mean_conn_neg_abs[5]
-        mean_exc_08=mean_conn_exc_abs[5]
-        mean_tot_08=mean_conn_tot_abs[5]
-        
-        mean_neg_09=mean_conn_neg_abs[6]
-        mean_exc_09=mean_conn_exc_abs[6]
-        mean_tot_09=mean_conn_tot_abs[6]   
-        
-        median_neg_03=median_conn_neg_abs[0]
-        median_exc_03=median_conn_exc_abs[0]
-        median_tot_03=median_conn_tot_abs[0]
-        
-        median_neg_04=median_conn_neg_abs[1]
-        median_exc_04=median_conn_exc_abs[1]
-        median_tot_04=median_conn_tot_abs[1]
-        
-        median_neg_05=median_conn_neg_abs[2]
-        median_exc_05=median_conn_exc_abs[2]
-        median_tot_05=median_conn_tot_abs[2]
-        
-        median_neg_06=median_conn_neg_abs[3]
-        median_exc_06=median_conn_exc_abs[3]
-        median_tot_06=median_conn_tot_abs[3]
-        
-        median_neg_07=median_conn_neg_abs[4]
-        median_exc_07=median_conn_exc_abs[4]
-        median_tot_07=median_conn_tot_abs[4]
-        
-        median_neg_08=median_conn_neg_abs[5]
-        median_exc_08=median_conn_exc_abs[5]
-        median_tot_08=median_conn_tot_abs[5]
-        
-        median_neg_09=median_conn_neg_abs[6]
-        median_exc_09=median_conn_exc_abs[6]
-        median_tot_09=median_conn_tot_abs[6]   
-        
- 
-        connection_exc_abs_neu=[neurons_number]*neurons_number
-        connection_neg_abs_neu=[neurons_number]*neurons_number
-        
-        
-        connection_exc_abs.append(connection_exc_abs_neu)
-        connection_neg_abs.append(connection_neg_abs_neu)
-        
-        connection_exc_abs_network=[network_name]*neurons_number
-        connection_neg_abs_network=[network_name]*neurons_number
-        
-        connection_exc_abs.append(connection_exc_abs_network)
-        connection_neg_abs.append(connection_neg_abs_network)
-        
-        connection_exc_abs_cell_date=[cell_date_2]*neurons_number
-        connection_neg_abs_cell_date=[cell_date_2]*neurons_number
-        
-        connection_exc_abs.append(connection_exc_abs_cell_date)
-        connection_neg_abs.append(connection_neg_abs_cell_date)
         
        
-        
-        
-        #connection_exc_abs.append(raw_connectivity_vector_list)
-        #connection_neg_abs.append(raw_connectivity_vector_list)
         
         distancias_sucesivas_neu=[neurons_number]*len(distancias_sucesivas)
         distancias_sucesivas.append(distancias_sucesivas_neu)
@@ -584,10 +344,7 @@ for mine in directories:
         uninterrupted_super_real_hubs_time.append(uninterrupted_super_real_hubs_time_network)
          
         
-        real_hubs_num.append(neurons_number)
-        super_real_hubs_num.append(neurons_number)
-        real_hubs_prop.append(neurons_number)
-        super_real_hubs_prop.append(neurons_number) 
+      
         
 
         n_of_visits_to_hubs=len(uninterrupted_real_hubs_time)-2
@@ -615,127 +372,29 @@ for mine in directories:
         mean_time_in_ms=np.mean(time_in_ms)
         median_time_in_ms=np.median(time_in_ms)
         
-    
-        
-        data_list=(neurons_number,number_of_states,distanica_maxima,n_change_points,distancia_total_recorrida,
-                   n_of_visits_to_hubs,n_of_visits_to_super_hubs,
-                   min_dist_suc,max_dist_suc,mean_dist_suc,median_dist_suc,
-                   min_uninterrupted_super_real_hubs_time,max_uninterrupted_super_real_hubs_time,mean_uninterrupted_super_real_hubs_time,median_uninterrupted_super_real_hubs_time,
-                   min_uninterrupted_real_hubs_time,max_uninterrupted_real_hubs_time,mean_uninterrupted_real_hubs_time,median_uninterrupted_real_hubs_time,
-                   min_time_in_ms,max_time_in_ms,mean_time_in_ms,median_time_in_ms,
-                   min_neg_03,min_exc_03,min_tot_03,
-                   min_neg_04,min_exc_04,min_tot_04,
-                   min_neg_05,min_exc_05,min_tot_05,
-                   min_neg_06,min_exc_06,min_tot_06,
-                   min_neg_07,min_exc_07,min_tot_07,
-                   min_neg_08,min_exc_08,min_tot_08,
-                   min_neg_09,min_exc_09,min_tot_09,
-                   max_neg_03,max_exc_03,max_tot_03,
-                   max_neg_04,max_exc_04,max_tot_04,
-                   max_neg_05,max_exc_05,max_tot_05,
-                   max_neg_06,max_exc_06,max_tot_06,
-                   max_neg_07,max_exc_07,max_tot_07,
-                   max_neg_08,max_exc_08,max_tot_08,
-                   max_neg_09,max_exc_09,max_tot_09,
-                   mean_neg_03,mean_exc_03,mean_tot_03,
-                   mean_neg_04,mean_exc_04,mean_tot_04,
-                   mean_neg_05,mean_exc_05,mean_tot_05,
-                   mean_neg_06,mean_exc_06,mean_tot_06,
-                   mean_neg_07,mean_exc_07,mean_tot_07,
-                   mean_neg_08,mean_exc_08,mean_tot_08,
-                   mean_neg_09,mean_exc_09,mean_tot_09,
-                   median_neg_03,median_exc_03,median_tot_03,
-                   median_neg_04,median_exc_04,median_tot_04,
-                   median_neg_05,median_exc_05,median_tot_05,
-                   median_neg_06,median_exc_06,median_tot_06,
-                   median_neg_07,median_exc_07,median_tot_07,
-                   median_neg_08,median_exc_08,median_tot_08,
-                   median_neg_09,median_exc_09,median_tot_09
-                   )
+        neurons_number_2=neurons_number*neurons_number
+        data_list_tot=(cell_line, condition,number_of_states,n_change_points,distanica_maxima,
+                       distancia_total_recorrida,mean_time_in_ms,max_dist_suc,real_hubs_num,
+                       n_of_visits_to_hubs,mean_uninterrupted_real_hubs_time,neurons_number, neurons_number_2,network_name_2)
         
         
-        
-        data_=np.asarray(data_list)
-        
-        estados =pd.DataFrame(data_, index=['neurons_num','n_states','max_dis','n_change_points',
-                                            'travel_dis','n_of_visits_to_hubs',
-                                            'n_of_visits_to_super_hubs',
-                                            'min_dist_suc','max_dist_suc','mean_dist_suc','median_dist_suc',
-                                            'min_uninterrupted_super_real_hubs_time','max_uninterrupted_super_real_hubs_time','mean_uninterrupted_super_real_hubs_time','median_uninterrupted_super_real_hubs_time', 
-                                            'min_uninterrupted_real_hubs_time','max_uninterrupted_real_hubs_time','mean_uninterrupted_real_hubs_time','median_uninterrupted_real_hubs_time',
-                                            'min_time_in_ms','max_time_in_ms','mean_time_in_ms','median_time_in_ms',
-                                            
-                                            'min_neg_03','min_exc_03','min_tot_03',
-                                            'min_neg_04','min_exc_04','min_tot_04',
-                                            'min_neg_05','min_exc_05','min_tot_05',
-                                            'min_neg_06','min_exc_06','min_tot_06',
-                                            'min_neg_07','min_exc_07','min_tot_07',
-                                            'min_neg_08','min_exc_08','min_tot_08',
-                                            'min_neg_09','min_exc_09','min_tot_09',
-                                            'max_neg_03','max_exc_03','max_tot_03',
-                                            'max_neg_04','max_exc_04','max_tot_04',
-                                            'max_neg_05','max_exc_05','max_tot_05',
-                                            'max_neg_06','max_exc_06','max_tot_06',
-                                            'max_neg_07','max_exc_07','max_tot_07',
-                                            'max_neg_08','max_exc_08','max_tot_08',
-                                            'max_neg_09','max_exc_09','max_tot_09',
-                                            'mean_neg_03','mean_exc_03','mean_tot_03',
-                                            'mean_neg_04','mean_exc_04','mean_tot_04',
-                                            'mean_neg_05','mean_exc_05','mean_tot_05',
-                                            'mean_neg_06','mean_exc_06','mean_tot_06',
-                                            'mean_neg_07','mean_exc_07','mean_tot_07',
-                                            'mean_neg_08','mean_exc_08','mean_tot_08',
-                                            'mean_neg_09','mean_exc_09','mean_tot_09',
-                                            'median_neg_03','median_exc_03','median_tot_03',
-                                            'median_neg_04','median_exc_04','median_tot_04',
-                                            'median_neg_05','median_exc_05','median_tot_05',
-                                            'median_neg_06','median_exc_06','median_tot_06',
-                                            'median_neg_07','median_exc_07','median_tot_07',
-                                            'median_neg_08','median_exc_08','median_tot_08',
-                                            'median_neg_09','median_exc_09','median_tot_09'
-                                            ], columns=[cell_date+'_'+video])
+        data_list_tot=np.asarray(data_list_tot)
 
-        
-        
-        
-        
-         # estados.to_csv(cell_date+'_estados_'+video)
-        connection_numbers_exc_round=np.round(connection_numbers_exc,2)
-        connection_numbers_neg_round=np.round(connection_numbers_neg,2)
-        connection_numbers_exc_df=pd.DataFrame(connection_numbers_exc_round, index=['0.3','0.4','0.5','0.6','0.7','0.8','0.9'], columns=[cell_date+'_'+video])
-        connection_numbers_neg_df=pd.DataFrame(connection_numbers_neg_round, index=['0.3','0.4','0.5','0.6','0.7','0.8','0.9'], columns=[cell_date+'_'+video])
-        # connection_numbers_exc_df.to_csv(cell_date+'_conn_exc_'+video)
-        # connection_numbers_neg_df.to_csv(cell_date+'_conn_neg_'+video)
-        
-        ###output
-        path_organizador=''#directory to save the results
-        #####
-        
-        
-        connection_numbers_exc_df.to_csv(path_organizador+cell_date+'_conn_exc_'+video)
-        connection_numbers_neg_df.to_csv(path_organizador+cell_date+'_conn_neg_'+video)
-        estados.to_csv(path_organizador+cell_date+'_estados_'+video)
-        #np.save(cell_date+'_conn_neg_abs_'+video,connection_neg_abs)
-        #np.save(cell_date+'_conn_exc_abs_'+video,connection_exc_abs)
-        np.save(path_organizador+cell_date+'_conn_neg_abs_'+video,connection_neg_abs)
-        np.save(path_organizador+cell_date+'_conn_exc_abs_'+video,connection_exc_abs)
-        #np.save(cell_date+'_hubs_'+video,hubs)
-        np.save(path_organizador+cell_date+'_hubs_'+video,hubs)
-        np.save(path_organizador+cell_date+'_dist_suc_'+video, distancias_sucesivas)
-        np.save(path_organizador+cell_date+'_states_analysis_'+video, dist_suces_mt_repetitions_num)
-        np.save(path_organizador+cell_date+'_states_ongoing_'+video, discrete_reg)
-        df_dict_of_hubs.to_csv(path_organizador+cell_date+'_dict_of_hubs_'+video)
-        np.save(path_organizador+cell_date+'_real_hubs_prop_'+video,real_hubs_prop)
-        np.save(path_organizador+cell_date+'_super_real_hubs_prop_'+video,super_real_hubs_prop)      
-        np.save(path_organizador+cell_date+'_real_hubs_num_'+video,real_hubs_num)
-        np.save(path_organizador+cell_date+'_super_real_hubs_num_'+video,super_real_hubs_num)          
-        np.save(path_organizador+cell_date+'_uninterrupted_real_hubs_time_'+video,uninterrupted_real_hubs_time)
-        np.save(path_organizador+cell_date+'_uninterrupted_super_real_hubs_time_'+video,uninterrupted_super_real_hubs_time)     
-        np.save(path_organizador+cell_date+'_raw_connectivity_vector_'+video,raw_connectivity_vector)
 
+
+        video_df[network_name_2]=data_list_tot
+        
+        
+        
+        
         print("done for "+cell_date+video)
+    
     print("completely done  for "+cell_date)
-        
-        
-        
-        
+    
+    DF_list.append(video_df)
+#%%
+df=pd.concat(DF_list, axis=1)     
+df=df.T
+#%%
+df.to_csv(path_organizador+'FC_formixedeffect_df.csv', index = True)
+#%%mixed effects test
